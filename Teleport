@@ -1,0 +1,232 @@
+--[[ 
+    TELEPORT V14 - DISCORD SYNC DASHBOARD
+    Script By Gemini
+    Features: Universal Save, Pro Discord Embeds, Mobile Controls
+]]
+
+-- ĐÃ TÍCH HỢP WEBHOOK CỦA BẠN:
+_G.WebhookURL = "https://discord.com/api/webhooks/1461901101157716201/yqVeAMIexmUV2tYEBX3Awj9I_lxvy1pj_DNGIqPyoNleVX_kK23ixP7WZZkyXAHA0mwW"
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+local CoreGui = game:GetService("CoreGui")
+local LocalPlayer = Players.LocalPlayer
+local Request = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
+
+-- FILE LƯU VĨNH VIỄN
+local UniversalFile = "UniversalTeleport_" .. tostring(game.PlaceId) .. ".json"
+
+local LegacyFiles = {
+    "AutoTeleportV4_", "TeleportV7_", "TeleportV8_", "TeleportV9_", 
+    "TeleportV10_", "TeleportV11_", "TeleportV12_"
+}
+
+local Database = { CurrentFolder = "Mặc Định", Folders = { ["Mặc Định"] = {} } }
+local isAutoLooping = false
+local CurrentDelay = 1.0
+
+-- Theme Gold Premium
+local Theme = {
+    MainColor = Color3.fromRGB(10, 10, 12), 
+    Transparency = 0.1,
+    Accent = Color3.fromRGB(255, 215, 0), -- Gold
+    Text = Color3.fromRGB(255, 255, 255),
+    Red = Color3.fromRGB(255, 60, 60),
+    Green = Color3.fromRGB(80, 255, 120),
+    Discord = Color3.fromRGB(88, 101, 242)
+}
+
+if CoreGui:FindFirstChild("TeleportV14") then CoreGui.TeleportV14:Destroy() end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "TeleportV14"
+ScreenGui.Parent = CoreGui
+ScreenGui.ResetOnSpawn = false
+
+-- === GIAO DIỆN CHÍNH ===
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 300, 0, 450)
+MainFrame.Position = UDim2.new(0.5, -150, 0.5, -225)
+MainFrame.BackgroundColor3 = Theme.MainColor
+MainFrame.BackgroundTransparency = Theme.Transparency
+MainFrame.Parent = ScreenGui
+MainFrame.ClipsDescendants = true
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 12)
+local MainStroke = Instance.new("UIStroke", MainFrame); MainStroke.Color = Theme.Accent; MainStroke.Thickness = 1.5; MainStroke.Transparency = 0.5
+
+-- Header
+local Header = Instance.new("Frame", MainFrame)
+Header.Size = UDim2.new(1, 0, 0, 45)
+Header.BackgroundTransparency = 1
+local TitleObj = Instance.new("TextLabel", Header)
+TitleObj.Text = "TELEPORT V14 SYNC"
+TitleObj.Size = UDim2.new(0.6, 0, 1, 0)
+TitleObj.Position = UDim2.new(0, 15, 0, 0)
+TitleObj.BackgroundTransparency = 1
+TitleObj.Font = Enum.Font.GothamBlack
+TitleObj.TextColor3 = Theme.Accent
+TitleObj.TextXAlignment = Enum.TextXAlignment.Left
+TitleObj.TextSize = 14
+
+-- Nút Export Discord (Màu Tím)
+local DiscordBtn = Instance.new("TextButton", Header)
+DiscordBtn.Size = UDim2.new(0, 80, 0, 26)
+DiscordBtn.Position = UDim2.new(1, -95, 0.5, -13)
+DiscordBtn.BackgroundColor3 = Theme.Discord
+DiscordBtn.Text = "Backup Discord"
+DiscordBtn.TextColor3 = Color3.new(1,1,1)
+DiscordBtn.Font = Enum.Font.GothamBold
+DiscordBtn.TextSize = 10
+Instance.new("UICorner", DiscordBtn).CornerRadius = UDim.new(0, 6)
+
+-- Thông báo
+local NotifLabel = Instance.new("TextLabel", MainFrame)
+NotifLabel.Size = UDim2.new(1, 0, 0, 20); NotifLabel.Position = UDim2.new(0, 0, 1, -20); NotifLabel.BackgroundTransparency = 1; NotifLabel.Text = ""; NotifLabel.Font = Enum.Font.GothamBold; NotifLabel.TextSize = 12; NotifLabel.TextColor3 = Theme.Accent; NotifLabel.ZIndex = 20
+local function Notify(text, color)
+    NotifLabel.Text = text; NotifLabel.TextColor3 = color or Theme.Accent
+    TweenService:Create(NotifLabel, TweenInfo.new(0.3), {TextTransparency = 0}):Play()
+    task.wait(2); TweenService:Create(NotifLabel, TweenInfo.new(1), {TextTransparency = 1}):Play()
+end
+
+-- Khu vực Tabs
+local TabContainer = Instance.new("Frame", MainFrame)
+TabContainer.Size = UDim2.new(1, -20, 0, 35); TabContainer.Position = UDim2.new(0, 10, 0, 50); TabContainer.BackgroundColor3 = Color3.new(0,0,0); TabContainer.BackgroundTransparency = 0.6; Instance.new("UICorner", TabContainer).CornerRadius = UDim.new(0, 8)
+local TabScroll = Instance.new("ScrollingFrame", TabContainer); TabScroll.Size = UDim2.new(1, -35, 1, 0); TabScroll.Position = UDim2.new(0, 5, 0, 0); TabScroll.BackgroundTransparency = 1; TabScroll.ScrollBarThickness = 0; TabScroll.CanvasSize = UDim2.new(2, 0, 0, 0); TabScroll.ScrollingDirection = Enum.ScrollingDirection.X
+local TabListLayout = Instance.new("UIListLayout", TabScroll); TabListLayout.FillDirection = Enum.FillDirection.Horizontal; TabListLayout.Padding = UDim.new(0, 5); TabListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+local AddFolderBtn = Instance.new("TextButton", TabContainer); AddFolderBtn.Size = UDim2.new(0, 30, 0, 35); AddFolderBtn.Position = UDim2.new(1, -30, 0, 0); AddFolderBtn.BackgroundTransparency = 1; AddFolderBtn.Text = "+"; AddFolderBtn.TextColor3 = Theme.Accent; AddFolderBtn.Font = Enum.Font.GothamBlack; AddFolderBtn.TextSize = 22
+
+-- Khu vực Tốc độ
+local SpeedFrame = Instance.new("Frame", MainFrame); SpeedFrame.Size = UDim2.new(1, -20, 0, 35); SpeedFrame.Position = UDim2.new(0, 10, 0, 90); SpeedFrame.BackgroundTransparency = 1
+local MinusBtn = Instance.new("TextButton", SpeedFrame); MinusBtn.Size = UDim2.new(0, 30, 0, 30); MinusBtn.Position = UDim2.new(0, 0, 0.5, -15); MinusBtn.BackgroundColor3 = Theme.MainColor; MinusBtn.Text = "-"; MinusBtn.TextColor3 = Theme.Accent; MinusBtn.Font = Enum.Font.GothamBlack; MinusBtn.TextSize = 18; Instance.new("UICorner", MinusBtn).CornerRadius = UDim.new(0, 8); Instance.new("UIStroke", MinusBtn).Color=Theme.Accent; Instance.new("UIStroke", MinusBtn).Thickness=1; Instance.new("UIStroke", MinusBtn).Transparency=0.5
+local PlusBtn = Instance.new("TextButton", SpeedFrame); PlusBtn.Size = UDim2.new(0, 30, 0, 30); PlusBtn.Position = UDim2.new(1, -30, 0.5, -15); PlusBtn.BackgroundColor3 = Theme.MainColor; PlusBtn.Text = "+"; PlusBtn.TextColor3 = Theme.Accent; PlusBtn.Font = Enum.Font.GothamBlack; PlusBtn.TextSize = 18; Instance.new("UICorner", PlusBtn).CornerRadius = UDim.new(0, 8); Instance.new("UIStroke", PlusBtn).Color=Theme.Accent; Instance.new("UIStroke", PlusBtn).Thickness=1; Instance.new("UIStroke", PlusBtn).Transparency=0.5
+local SliderBg = Instance.new("Frame", SpeedFrame); SliderBg.Size = UDim2.new(1, -70, 0, 6); SliderBg.Position = UDim2.new(0.5, -35, 0.5, -4); SliderBg.AnchorPoint = Vector2.new(0.5, 0); SliderBg.BackgroundColor3 = Color3.fromRGB(50,50,50); Instance.new("UICorner", SliderBg).CornerRadius = UDim.new(1, 0)
+local SliderFill = Instance.new("Frame", SliderBg); SliderFill.Size = UDim2.new(0.1, 0, 1, 0); SliderFill.BackgroundColor3 = Theme.Accent; Instance.new("UICorner", SliderFill).CornerRadius = UDim.new(1, 0)
+local ValueLabel = Instance.new("TextLabel", SpeedFrame); ValueLabel.Text = "1.0s"; ValueLabel.Size = UDim2.new(1, 0, 0, 15); ValueLabel.Position = UDim2.new(0, 0, 1, -5); ValueLabel.BackgroundTransparency = 1; ValueLabel.TextColor3 = Theme.Text; ValueLabel.Font = Enum.Font.GothamBold; ValueLabel.TextSize = 10
+
+-- Nút Auto Loop
+local LoopBtn = Instance.new("TextButton", MainFrame); LoopBtn.Size = UDim2.new(1, -20, 0, 30); LoopBtn.Position = UDim2.new(0, 10, 0, 130); LoopBtn.BackgroundColor3 = Color3.new(0,0,0); LoopBtn.BackgroundTransparency = 0.6; LoopBtn.Text = "BẬT AUTO LOOP"; LoopBtn.TextColor3 = Theme.Red; LoopBtn.Font = Enum.Font.GothamBold; LoopBtn.TextSize = 12; Instance.new("UICorner", LoopBtn).CornerRadius = UDim.new(0, 6); local LoopStroke = Instance.new("UIStroke", LoopBtn); LoopStroke.Color = Theme.Red; LoopStroke.Thickness = 1; LoopStroke.Transparency = 0.5
+local InputBox = Instance.new("TextBox", MainFrame); InputBox.Size = UDim2.new(0.65, 0, 0, 30); InputBox.Position = UDim2.new(0, 10, 0, 165); InputBox.BackgroundColor3 = Color3.new(0,0,0); InputBox.BackgroundTransparency = 0.6; InputBox.Text = ""; InputBox.PlaceholderText = "Tên điểm/tệp..."; InputBox.TextColor3 = Theme.Text; InputBox.Font = Enum.Font.Gotham; InputBox.TextSize = 12; Instance.new("UICorner", InputBox).CornerRadius = UDim.new(0, 6)
+local AddPointBtn = Instance.new("TextButton", MainFrame); AddPointBtn.Size = UDim2.new(0.3, 0, 0, 30); AddPointBtn.Position = UDim2.new(1, -10, 0, 165); AddPointBtn.AnchorPoint = Vector2.new(1, 0); AddPointBtn.BackgroundColor3 = Theme.Accent; AddPointBtn.BackgroundTransparency = 0.2; AddPointBtn.Text = "LƯU"; AddPointBtn.TextColor3 = Color3.new(0,0,0); AddPointBtn.Font = Enum.Font.GothamBold; Instance.new("UICorner", AddPointBtn).CornerRadius = UDim.new(0, 6)
+
+-- List
+local ListContainer = Instance.new("ScrollingFrame", MainFrame); ListContainer.Size = UDim2.new(1, -20, 1, -200); ListContainer.Position = UDim2.new(0, 10, 0, 200); ListContainer.BackgroundTransparency = 1; ListContainer.ScrollBarThickness = 2; ListContainer.ScrollBarImageColor3 = Theme.Accent
+local UIList = Instance.new("UIListLayout", ListContainer); UIList.Padding = UDim.new(0, 5); UIList.SortOrder = Enum.SortOrder.LayoutOrder
+
+-- Toggle Button
+local ToggleBtn = Instance.new("ImageButton", ScreenGui); ToggleBtn.Size = UDim2.new(0, 45, 0, 45); ToggleBtn.Position = UDim2.new(0.02, 0, 0.4, 0); ToggleBtn.BackgroundColor3 = Theme.Accent; ToggleBtn.Image = "rbxassetid://7072719530"; ToggleBtn.ImageColor3 = Color3.new(0, 0, 0); Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(1, 0); Instance.new("UIStroke", ToggleBtn).Color = Color3.new(1,1,1); Instance.new("UIStroke", ToggleBtn).Thickness = 2; Instance.new("UIStroke", ToggleBtn).Transparency = 0.5
+
+-- === LOGIC HỆ THỐNG ===
+
+local function SaveData() 
+    local d = { CurrentFolder = Database.CurrentFolder, Folders = {} }
+    for k, v in pairs(Database.Folders) do d.Folders[k] = {} for _, p in ipairs(v) do table.insert(d.Folders[k], {N = p.name, C = {p.cframe:GetComponents()}}) end end
+    writefile(UniversalFile, HttpService:JSONEncode(d))
+end
+
+local function RefreshPoints() 
+    for _, v in pairs(ListContainer:GetChildren()) do if v:IsA("Frame") then v:Destroy() end end; local currentList = Database.Folders[Database.CurrentFolder] or {}
+    for i, point in ipairs(currentList) do 
+        local Item = Instance.new("Frame", ListContainer); Item.Size = UDim2.new(1, 0, 0, 35); Item.BackgroundColor3 = Color3.new(0,0,0); Item.BackgroundTransparency = 0.6; Instance.new("UICorner", Item).CornerRadius = UDim.new(0, 6)
+        local Name = Instance.new("TextLabel", Item); Name.Size = UDim2.new(0.65, 0, 1, 0); Name.Position = UDim2.new(0.05, 0, 0, 0); Name.BackgroundTransparency = 1; Name.Text = point.name; Name.TextColor3 = Theme.Text; Name.TextXAlignment = Enum.TextXAlignment.Left; Name.Font = Enum.Font.Gotham; Name.TextSize = 12
+        local TP = Instance.new("TextButton", Item); TP.Size = UDim2.new(0, 28, 0, 28); TP.Position = UDim2.new(0.72, 0, 0.5, -14); TP.Text = "✈️"; TP.BackgroundColor3 = Theme.Accent; TP.BackgroundTransparency = 0.1; TP.TextColor3 = Color3.new(0,0,0); Instance.new("UICorner", TP).CornerRadius = UDim.new(0, 6)
+        local Del = Instance.new("TextButton", Item); Del.Size = UDim2.new(0, 28, 0, 28); Del.Position = UDim2.new(0.88, 0, 0.5, -14); Del.Text = "🗑️"; Del.BackgroundColor3 = Theme.Red; Del.BackgroundTransparency = 0.1; Del.TextColor3 = Color3.new(1,1,1); Instance.new("UICorner", Del).CornerRadius = UDim.new(0, 6)
+        TP.MouseButton1Click:Connect(function() if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then LocalPlayer.Character.HumanoidRootPart.CFrame = point.cframe end end)
+        Del.MouseButton1Click:Connect(function() table.remove(currentList, i); SaveData(); RefreshPoints() end) 
+    end
+    ListContainer.CanvasSize = UDim2.new(0, 0, 0, #currentList * 40)
+end
+
+local function RefreshTabs() 
+    for _, v in pairs(TabScroll:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end; local keys = {}; for k in pairs(Database.Folders) do table.insert(keys, k) end; table.sort(keys)
+    for _, folderName in ipairs(keys) do 
+        local TabBtn = Instance.new("TextButton", TabScroll); TabBtn.Size = UDim2.new(0, 0, 0, 25); TabBtn.AutomaticSize = Enum.AutomaticSize.X; TabBtn.BackgroundColor3 = (folderName == Database.CurrentFolder) and Theme.Accent or Color3.new(0,0,0); TabBtn.BackgroundTransparency = (folderName == Database.CurrentFolder) and 0.2 or 0.8; TabBtn.Text = "  " .. folderName .. "  "; TabBtn.TextColor3 = (folderName == Database.CurrentFolder) and Color3.new(0,0,0) or Theme.Text; TabBtn.Font = Enum.Font.GothamBold; TabBtn.TextSize = 12; Instance.new("UICorner", TabBtn).CornerRadius = UDim.new(0, 6)
+        TabBtn.MouseButton1Click:Connect(function() Database.CurrentFolder = folderName; SaveData(); RefreshTabs(); RefreshPoints() end)
+        TabBtn.MouseButton2Click:Connect(function() if folderName ~= "Mặc Định" then Database.Folders[folderName] = nil; Database.CurrentFolder = "Mặc Định"; SaveData(); RefreshTabs(); RefreshPoints() end end)
+    end 
+end
+
+-- === CHỨC NĂNG DISCORD PRO DASHBOARD ===
+DiscordBtn.MouseButton1Click:Connect(function()
+    if _G.WebhookURL == "" then Notify("Chưa nhập Webhook!", Theme.Red); return end
+    Notify("Đang gửi Dashboard...", Theme.Discord)
+    
+    local fields = {}
+    local totalPoints = 0
+    
+    for folderName, points in pairs(Database.Folders) do
+        local valueText = ""
+        if #points > 0 then
+            for i, p in ipairs(points) do
+                local pos = p.cframe.Position
+                local coord = string.format("(%d, %d, %d)", math.floor(pos.X), math.floor(pos.Y), math.floor(pos.Z))
+                valueText = valueText .. "`" .. i .. ". " .. p.name .. "` " .. coord .. "\n"
+                totalPoints = totalPoints + 1
+            end
+        else valueText = "*Trống*" end
+        if #valueText > 1000 then valueText = string.sub(valueText, 1, 950) .. "\n... (Còn nữa)" end
+        table.insert(fields, {["name"] = "📂 " .. folderName, ["value"] = valueText, ["inline"] = false})
+    end
+    
+    local embedData = {
+        ["title"] = "🌍 TELEPORT DATA DASHBOARD",
+        ["description"] = "Dữ liệu được xuất từ **Teleport Script V14**\n**Game:** " .. game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name .. "\n**Tổng điểm:** " .. totalPoints,
+        ["color"] = 16766720,
+        ["fields"] = fields,
+        ["footer"] = {["text"] = "Tự động đồng bộ lúc " .. os.date("%X")},
+        ["thumbnail"] = {["url"] = "https://www.roblox.com/asset-thumbnail/image?assetId=" .. game.PlaceId .. "&width=420&height=420&format=png"}
+    }
+    
+    Request({Url = _G.WebhookURL, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = HttpService:JSONEncode({["content"] = "", ["embeds"] = {embedData}})})
+    Notify("Đã gửi Dashboard!", Theme.Green)
+end)
+
+-- Initialize
+local function InitializeData()
+    if isfile(UniversalFile) then
+        pcall(function() local r = HttpService:JSONDecode(readfile(UniversalFile)); if r.Folders then Database.Folders={}; Database.CurrentFolder=r.CurrentFolder or "Mặc Định"; for k,v in pairs(r.Folders) do Database.Folders[k]={}; for _,p in ipairs(v) do table.insert(Database.Folders[k], {name=p.N, cframe=CFrame.new(unpack(p.C))}) end end end end)
+    else
+        Notify("Đang quét dữ liệu cũ...", Theme.Accent)
+        local FoundOldData = false
+        for _, prefix in ipairs(LegacyFiles) do
+            local oldFile = prefix .. tostring(game.PlaceId) .. ".json"
+            if isfile(oldFile) then
+                local s, data = pcall(function() return HttpService:JSONDecode(readfile(oldFile)) end)
+                if s and data then
+                    local ImportName = "Backup " .. prefix:gsub("_", "")
+                    Database.Folders[ImportName] = {}
+                    if data.Folders then for fname, list in pairs(data.Folders) do for _, p in ipairs(list) do table.insert(Database.Folders[ImportName], {name=p.N, cframe=CFrame.new(unpack(p.C))}) end end
+                    elseif #data > 0 then for _, p in ipairs(data) do local c=p.Components or (p.cframe and {p.cframe.X, p.cframe.Y, p.cframe.Z}) or {0,0,0}; table.insert(Database.Folders[ImportName], {name=p.N or p.name or "P", cframe=CFrame.new(unpack(c))}) end end
+                    FoundOldData = true
+                end
+            end
+        end
+        if FoundOldData then SaveData(); Notify("Đã gộp dữ liệu cũ!", Theme.Green) end
+    end
+    if not Database.Folders["Mặc Định"] then Database.Folders["Mặc Định"] = {} end
+end
+
+-- Events
+local function UpdateSpeedDisplay() CurrentDelay = math.clamp(CurrentDelay, 0.1, 10.0); CurrentDelay = math.floor(CurrentDelay * 10) / 10; ValueLabel.Text = CurrentDelay .. "s"; local percent = (CurrentDelay - 0.1) / 9.9; TweenService:Create(SliderFill, TweenInfo.new(0.1), {Size = UDim2.new(percent, 0, 1, 0)}):Play() end
+MinusBtn.MouseButton1Click:Connect(function() CurrentDelay = CurrentDelay - 0.1; UpdateSpeedDisplay() end)
+PlusBtn.MouseButton1Click:Connect(function() CurrentDelay = CurrentDelay + 0.1; UpdateSpeedDisplay() end)
+AddFolderBtn.MouseButton1Click:Connect(function() local n = InputBox.Text; if n~="" and not Database.Folders[n] then Database.Folders[n]={}; Database.CurrentFolder=n; InputBox.Text=""; SaveData(); RefreshTabs(); RefreshPoints(); Notify("Tạo: "..n, Theme.Accent) else Notify("Lỗi tên!", Theme.Red) end end)
+AddPointBtn.MouseButton1Click:Connect(function() if LocalPlayer.Character then local n=InputBox.Text; if n=="" then n="P"..#Database.Folders[Database.CurrentFolder]+1 end; if not Database.Folders[n] then table.insert(Database.Folders[Database.CurrentFolder], {name=n, cframe=LocalPlayer.Character.HumanoidRootPart.CFrame}); SaveData(); RefreshPoints(); InputBox.Text=""; Notify("Lưu!", Theme.Accent) end end end)
+LoopBtn.MouseButton1Click:Connect(function() isAutoLooping = not isAutoLooping; if isAutoLooping then LoopBtn.Text="ĐANG CHẠY..."; LoopBtn.TextColor3=Theme.Accent; LoopStroke.Color=Theme.Accent; task.spawn(function() while isAutoLooping do local list=Database.Folders[Database.CurrentFolder]; if not list or #list==0 then isAutoLooping=false; break end; for _,p in ipairs(list) do if not isAutoLooping or Database.Folders[Database.CurrentFolder]~=list then break end; if LocalPlayer.Character then LocalPlayer.Character.HumanoidRootPart.CFrame=p.cframe end; local w=0; while w<CurrentDelay do if not isAutoLooping then break end; task.wait(0.1); w=w+0.1 end end end; LoopBtn.Text="BẬT AUTO LOOP"; LoopBtn.TextColor3=Theme.Red; LoopStroke.Color=Theme.Red end) else LoopBtn.Text="BẬT AUTO LOOP"; LoopBtn.TextColor3=Theme.Red; LoopStroke.Color=Theme.Red end end)
+
+InitializeData()
+RefreshTabs(); RefreshPoints()
+
+local isOn = true
+ToggleBtn.MouseButton1Click:Connect(function() isOn = not isOn; MainFrame.Visible = isOn end)
+local function MakeDraggable(frame) local dragToggle, dragStart, startPos, dragInput
+    frame.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.Touch or i.UserInputType==Enum.UserInputType.MouseButton1 then dragToggle=true; dragStart=i.Position; startPos=frame.Position end end)
+    frame.InputChanged:Connect(function(i) if i.UserInputType==Enum.UserInputType.Touch or i.UserInputType==Enum.UserInputType.MouseMovement then dragInput=i end end)
+    UserInputService.InputChanged:Connect(function(i) if i==dragInput and dragToggle then local d=i.Position-dragStart; TweenService:Create(frame, TweenInfo.new(0.05), {Position=UDim2.new(startPos.X.Scale, startPos.X.Offset+d.X, startPos.Y.Scale, startPos.Y.Offset+d.Y)}):Play() end end)
+    frame.InputBegan:Connect(function(i) if i.UserInputState==Enum.UserInputState.End then dragToggle=false end end)
+end; MakeDraggable(MainFrame)
+
+print("V14 Discord Sync Loaded")
+
